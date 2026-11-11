@@ -1,0 +1,23 @@
+-- ==============================================================================
+-- JOBTRACK: TEMPLATE SEED AKUN OWNER PERTAMA
+-- ==============================================================================
+-- Petunjuk:
+-- 1. Buat user di Supabase Dashboard -> Authentication -> Users -> Add User (Create User)
+--    Masukkan email Anda dan password yang kuat, lalu centang "Auto Confirm User".
+-- 2. Salin "User UID" (UUID) milik akun tersebut.
+-- 3. Ganti 'PASTE_YOUR_AUTH_USER_UUID_HERE' di bawah dengan UUID yang Anda salin.
+-- 4. Jalankan script ini di SQL Editor Supabase.
+
+INSERT INTO public.app_owner (user_id)
+VALUES ('PASTE_YOUR_AUTH_USER_UUID_HERE'::uuid)
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Inisialisasi preferensi bawaan untuk owner tersebut:
+INSERT INTO public.user_preferences (user_id, theme, default_currency, date_format)
+VALUES (
+  'PASTE_YOUR_AUTH_USER_UUID_HERE'::uuid,
+  'light',
+  'IDR',
+  'dd MMM yyyy'
+)
+ON CONFLICT (user_id) DO NOTHING;
