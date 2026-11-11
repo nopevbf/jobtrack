@@ -109,9 +109,29 @@ export const DocumentsPage: React.FC = () => {
   const handleDelete = async (id: string, storagePath: string) => {
     if (window.confirm('Hapus dokumen ini secara permanen?')) {
       try {
-        await supabase.storage.from('job-attachments').remove([storagePath]);
-        await supabase.from('application_attachments').delete().eq('id', id);
+        // Cek apakah ada record lain yang merujuk ke berkas fisik yang sama
+        const { count, error: countErr } = await supabase
+          .from('application_attachments')
+          .select('*', { count: 'exact', head: true })
+          .eq('storage_path', storagePath);
+
+        if (countErr) throw countErr;
+
+        // Hapus metadata baris ini
+        const { error: dbError } = await supabase
+          .from('application_attachments')
+          .delete()
+          .eq('id', id);
+
+        if (dbError) throw dbError;
+
+        // Hanya hapus fisik dari storage jika tidak ada referensi lain
+        if (count !== null && count <= 1) {
+          await supabase.storage.from('job-attachments').remove([storagePath]);
+        }
+
         queryClient.invalidateQueries({ queryKey: ['all_attachments'] });
+        queryClient.invalidateQueries({ queryKey: ['user_library_documents'] });
       } catch (err: any) {
         alert(`Gagal menghapus dokumen: ${err.message}`);
       }

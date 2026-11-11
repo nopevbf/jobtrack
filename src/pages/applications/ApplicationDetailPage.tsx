@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useApplication, useUpdateApplicationStatus, useDeleteApplication } from '../../hooks/useApplications';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -31,6 +32,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: rawApp, isLoading, refetch } = useApplication(id);
   const app = rawApp as any;
@@ -147,7 +149,7 @@ export const ApplicationDetailPage: React.FC = () => {
     }
   };
 
-  const handleDownloadAttachment = async (storagePath: string, fileName: string) => {
+  const handleDownloadAttachment = async (storagePath: string) => {
     try {
       // Buat signed URL (berlaku 60 detik)
       const { data, error } = await supabase.storage
@@ -159,6 +161,36 @@ export const ApplicationDetailPage: React.FC = () => {
       window.open(data.signedUrl, '_blank');
     } catch (err: any) {
       alert(`Gagal mengunduh file: ${err.message}`);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string, storagePath: string) => {
+    if (!window.confirm('Hapus berkas lampiran ini?')) return;
+    try {
+      const { count, error: countErr } = await supabase
+        .from('application_attachments')
+        .select('*', { count: 'exact', head: true })
+        .eq('storage_path', storagePath);
+
+      if (countErr) throw countErr;
+
+      const { error: dbError } = await supabase
+        .from('application_attachments')
+        .delete()
+        .eq('id', attachmentId);
+
+      if (dbError) throw dbError;
+
+      // Hanya hapus berkas fisik jika tidak dipakai oleh lamaran lain
+      if (count !== null && count <= 1) {
+        await supabase.storage.from('job-attachments').remove([storagePath]);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['job_application', id] });
+      queryClient.invalidateQueries({ queryKey: ['all_attachments'] });
+      queryClient.invalidateQueries({ queryKey: ['user_library_documents'] });
+    } catch (err: any) {
+      alert(`Gagal menghapus berkas: ${err.message}`);
     }
   };
 
@@ -497,13 +529,22 @@ export const ApplicationDetailPage: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDownloadAttachment(file.storage_path, file.file_name)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-brand-50 hover:text-brand-600"
-                    title="Unduh Berkas"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleDownloadAttachment(file.storage_path)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-brand-50 hover:text-brand-600"
+                      title="Unduh / Pratinjau Berkas"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAttachment(file.id, file.storage_path)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      title="Hapus Berkas"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (

@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import { jobApplicationSchema, type JobApplicationFormValues } from '../../lib/validation';
 import { useCreateApplication } from '../../hooks/useApplications';
-import { X, Loader2, Building2, Briefcase, DollarSign, Calendar, User, Link as LinkIcon } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { AttachmentManager } from './AttachmentManager';
+import { type AttachmentItem, resolvePrimaryResume } from '../../lib/attachments';
+import { X, Loader2, Building2 } from 'lucide-react';
 
 interface ApplicationFormModalProps {
   isOpen: boolean;
@@ -14,7 +19,14 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const createMutation = useCreateApplication();
+
+  const [selectedAttachments, setSelectedAttachments] = useState<AttachmentItem[]>([]);
+  const [primaryResumeId, setPrimaryResumeId] = useState<string | null>(null);
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
@@ -42,13 +54,121 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleClose = () => {
+    if (isSubmitting) return; // Kunci modal jika sedang menyimpan/mengunggah
+    reset();
+    setSelectedAttachments([]);
+    setPrimaryResumeId(null);
+    setUploadProgressText(null);
+    onClose();
+  };
+
   const onSubmit = async (values: JobApplicationFormValues) => {
+    if (!user) {
+      alert('Sesi masuk Anda telah berakhir. Silakan login kembali.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setUploadProgressText('Menyimpan data lamaran...');
+
     try {
-      await createMutation.mutateAsync(values);
+      // 1. Tentukan resume_version jika ada berkas yang ditandai sebagai CV Utama
+      const primaryName = resolvePrimaryResume(selectedAttachments, primaryResumeId);
+      const submissionValues: JobApplicationFormValues = {
+        ...values,
+        resume_version: primaryName || values.resume_version || null,
+      };
+
+      // 2. Simpan record lamaran pekerjaan
+      const createdApp = await createMutation.mutateAsync(submissionValues);
+      const appId = createdApp.id;
+
+      // 3. Proses lampiran berkas (jika ada)
+      const failedFiles: string[] = [];
+
+      if (selectedAttachments.length > 0) {
+        for (let i = 0; i < selectedAttachments.length; i++) {
+          const item = selectedAttachments[i];
+          setUploadProgressText(
+            `Menyimpan lampiran (${i + 1}/${selectedAttachments.length}): ${item.name}...`
+          );
+
+          if (item.source === 'library' && item.storagePath) {
+            // Berkas dari pustaka (Shared Reference)
+            const { error: dbError } = await supabase.from('application_attachments').insert({
+              user_id: user.id,
+              application_id: appId,
+              file_name: item.name,
+              storage_path: item.storagePath,
+              file_type: item.fileType || 'application/octet-stream',
+              file_size: item.size,
+            });
+
+            if (dbError) {
+              failedFiles.push(item.name);
+            }
+          } else if (item.source === 'local' && item.file) {
+            // Berkas lokal baru
+            const storagePath = `${user.id}/${appId}/${crypto.randomUUID()}_${item.name}`;
+
+            // A. Upload ke Supabase Storage
+            const { error: uploadError } = await supabase.storage
+              .from('job-attachments')
+              .upload(storagePath, item.file);
+
+            if (uploadError) {
+              failedFiles.push(item.name);
+              continue;
+            }
+
+            // B. Simpan metadata ke tabel application_attachments
+            const { error: metaError } = await supabase.from('application_attachments').insert({
+              user_id: user.id,
+              application_id: appId,
+              file_name: item.name,
+              storage_path: storagePath,
+              file_type: item.fileType || 'application/octet-stream',
+              file_size: item.size,
+            });
+
+            if (metaError) {
+              // Rollback fisik file dari storage (Per-File Rollback)
+              try {
+                await supabase.storage.from('job-attachments').remove([storagePath]);
+              } catch {
+                // ignore
+              }
+              failedFiles.push(item.name);
+            }
+          }
+        }
+      }
+
+      // 4. Invalidate query cache agar daftar berkas di halaman detail & dokumen tersinkronisasi
+      queryClient.invalidateQueries({ queryKey: ['job_applications'] });
+      queryClient.invalidateQueries({ queryKey: ['all_attachments'] });
+      queryClient.invalidateQueries({ queryKey: ['user_library_documents'] });
+
+      // 5. Informasi hasil (Opsi A: Partial Success notification jika ada yang gagal)
+      if (failedFiles.length > 0) {
+        alert(
+          `Lamaran berhasil disimpan, namun berkas berikut gagal diunggah: ${failedFiles.join(
+            ', '
+          )}.\nAnda dapat mengunggahnya kembali di halaman Detail Lamaran.`
+        );
+      }
+
+      // Reset form dan tutup modal
       reset();
+      setSelectedAttachments([]);
+      setPrimaryResumeId(null);
       onClose();
     } catch (err: any) {
       alert(`Gagal menyimpan lamaran: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+      setUploadProgressText(null);
     }
   };
 
@@ -67,8 +187,9 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
           >
             <X className="h-5 w-5" />
           </button>
@@ -290,24 +411,34 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             />
           </div>
 
+          {/* Dokumen & Lampiran */}
+          <AttachmentManager
+            selectedItems={selectedAttachments}
+            onItemsChange={setSelectedAttachments}
+            primaryResumeId={primaryResumeId}
+            onPrimaryResumeChange={setPrimaryResumeId}
+            disabled={isSubmitting}
+          />
+
           {/* Footer Submit Actions */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+              disabled={isSubmitting}
+              onClick={handleClose}
+              className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-40"
             >
               Batal
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={isSubmitting}
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-brand-600/25 hover:from-brand-700 hover:to-indigo-700 disabled:opacity-60"
             >
-              {createMutation.isPending ? (
+              {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Menyimpan...</span>
+                  <span>{uploadProgressText || 'Menyimpan...'}</span>
                 </>
               ) : (
                 <span>Simpan Lamaran</span>

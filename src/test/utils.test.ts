@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatDate, cn } from '../lib/utils';
+import { formatCurrency, formatDate, formatFileSize, cn } from '../lib/utils';
 
 describe('Utility Functions TDD', () => {
   describe('formatCurrency', () => {
@@ -18,16 +18,26 @@ describe('Utility Functions TDD', () => {
     });
   });
 
-  describe('formatDate', () => {
-    it('memformat string tanggal ISO menjadi format tanggal yang rapi', () => {
-      const res = formatDate('2026-11-11');
-      expect(res).toContain('2026');
-      expect(res).toContain('11');
+  describe('formatDate (Standarisasi dd/mm/yyyy)', () => {
+    it('memformat string tanggal ISO menjadi format dd/mm/yyyy', () => {
+      expect(formatDate('2026-11-11')).toBe('11/11/2026');
+      expect(formatDate('2026-05-09')).toBe('09/05/2026');
+      expect(formatDate('2026-01-01T00:00:00Z')).toBe('01/01/2026');
     });
 
     it('mengembalikan "-" jika tanggal kosong', () => {
       expect(formatDate(null)).toBe('-');
       expect(formatDate(undefined)).toBe('-');
+      expect(formatDate('')).toBe('-');
+    });
+  });
+
+  describe('formatFileSize', () => {
+    it('memformat ukuran byte ke satuan yang mudah dibaca', () => {
+      expect(formatFileSize(0)).toBe('0 B');
+      expect(formatFileSize(1024)).toBe('1.0 KB');
+      expect(formatFileSize(1024 * 1024)).toBe('1.0 MB');
+      expect(formatFileSize(2.5 * 1024 * 1024)).toBe('2.5 MB');
     });
   });
 
