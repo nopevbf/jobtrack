@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { jobApplicationSchema, type JobApplicationFormValues } from '../../lib/validation';
@@ -7,6 +7,7 @@ import { useCreateApplication } from '../../hooks/useApplications';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { AttachmentManager } from './AttachmentManager';
+import { DateInput } from '../common/DateInput';
 import { type AttachmentItem, resolvePrimaryResume } from '../../lib/attachments';
 import { X, Loader2, Building2 } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -265,11 +267,18 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">Tanggal Melamar</label>
-              <input
-                type="date"
-                {...register('application_date')}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus:border-brand-500 focus:outline-none"
+              <Controller
+                control={control}
+                name="application_date"
+                render={({ field }) => (
+                  <DateInput
+                    label="Tanggal Melamar"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.application_date?.message}
+                    disabled={isSubmitting}
+                  />
+                )}
               />
             </div>
           </div>
@@ -362,11 +371,18 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">Jadwal Follow-up</label>
-              <input
-                type="date"
-                {...register('follow_up_date')}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus:border-brand-500 focus:outline-none"
+              <Controller
+                control={control}
+                name="follow_up_date"
+                render={({ field }) => (
+                  <DateInput
+                    label="Jadwal Follow-up"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.follow_up_date?.message}
+                    disabled={isSubmitting}
+                  />
+                )}
               />
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
+import { DateInput } from '../../components/common/DateInput';
 import type { Database } from '../../types/database.types';
 
 type RecruitmentEventRow = Database['public']['Tables']['recruitment_events']['Row'];
@@ -28,7 +29,8 @@ export const CalendarPage: React.FC = () => {
   const [selectedAppId, setSelectedAppId] = useState('');
   const [eventType, setEventType] = useState('HR Interview');
   const [title, setTitle] = useState('');
-  const [startDatetime, setStartDatetime] = useState('');
+  const [eventDate, setEventDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [eventTime, setEventTime] = useState('09:00');
   const [locationOrLink, setLocationOrLink] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,16 +73,17 @@ export const CalendarPage: React.FC = () => {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !startDatetime || !user) return;
+    if (!title.trim() || !eventDate || !user) return;
 
     setIsSubmitting(true);
     try {
+      const fullIsoString = new Date(`${eventDate}T${eventTime || '09:00'}:00`).toISOString();
       const { error } = await supabase.from('recruitment_events').insert({
         user_id: user.id,
         application_id: selectedAppId || null,
         event_type: eventType,
         title: title.trim(),
-        start_datetime: new Date(startDatetime).toISOString(),
+        start_datetime: fullIsoString,
         location_or_link: locationOrLink.trim() || null,
         notes: notes.trim() || null,
       });
@@ -325,17 +328,25 @@ export const CalendarPage: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-foreground mb-1">
-                  Waktu Mulai <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={startDatetime}
-                  onChange={(e) => setStartDatetime(e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background p-2.5 focus:border-brand-500 focus:outline-none"
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DateInput
+                  label="Tanggal Agenda"
                   required
+                  value={eventDate}
+                  onChange={setEventDate}
                 />
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Jam / Waktu <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={eventTime}
+                    onChange={(e) => setEventTime(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    required
+                  />
+                </div>
               </div>
 
               <div>

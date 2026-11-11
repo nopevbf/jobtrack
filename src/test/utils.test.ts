@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, formatDate, formatFileSize, cn } from '../lib/utils';
+import {
+  formatCurrency,
+  formatDate,
+  formatFileSize,
+  isoToDisplayDate,
+  displayToIsoDate,
+  isValidDisplayDate,
+  cn,
+} from '../lib/utils';
 
 describe('Utility Functions TDD', () => {
   describe('formatCurrency', () => {
@@ -18,17 +26,39 @@ describe('Utility Functions TDD', () => {
     });
   });
 
-  describe('formatDate (Standarisasi dd/mm/yyyy)', () => {
-    it('memformat string tanggal ISO menjadi format dd/mm/yyyy', () => {
-      expect(formatDate('2026-11-11')).toBe('11/11/2026');
-      expect(formatDate('2026-05-09')).toBe('09/05/2026');
-      expect(formatDate('2026-01-01T00:00:00Z')).toBe('01/01/2026');
+  describe('formatDate (Output: Contoh 11 Nov 2026)', () => {
+    it('memformat tanggal menjadi format nama bulan seperti 11 Nov 2026', () => {
+      expect(formatDate('2026-11-11')).toBe('11 Nov 2026');
+      expect(formatDate('2026-05-09')).toBe('9 Mei 2026');
+      expect(formatDate('2026-01-01')).toBe('1 Jan 2026');
     });
 
     it('mengembalikan "-" jika tanggal kosong', () => {
       expect(formatDate(null)).toBe('-');
       expect(formatDate(undefined)).toBe('-');
       expect(formatDate('')).toBe('-');
+    });
+  });
+
+  describe('Konversi Tanggal Input (dd/mm/yyyy <-> yyyy-mm-dd)', () => {
+    it('isoToDisplayDate mengubah yyyy-mm-dd menjadi dd/mm/yyyy', () => {
+      expect(isoToDisplayDate('2026-11-11')).toBe('11/11/2026');
+      expect(isoToDisplayDate('2026-05-09')).toBe('09/05/2026');
+      expect(isoToDisplayDate('')).toBe('');
+    });
+
+    it('displayToIsoDate mengubah dd/mm/yyyy menjadi yyyy-mm-dd', () => {
+      expect(displayToIsoDate('11/11/2026')).toBe('2026-11-11');
+      expect(displayToIsoDate('09/05/2026')).toBe('2026-05-09');
+      expect(displayToIsoDate('9/5/2026')).toBe('2026-05-09');
+    });
+
+    it('isValidDisplayDate memvalidasi keabsahan tanggal kalender', () => {
+      expect(isValidDisplayDate('11/11/2026')).toBe(true);
+      expect(isValidDisplayDate('31/02/2026')).toBe(false); // Februari tidak ada tgl 31
+      expect(isValidDisplayDate('32/01/2026')).toBe(false); // Tanggal 32 tidak valid
+      expect(isValidDisplayDate('15/13/2026')).toBe(false); // Bulan 13 tidak valid
+      expect(isValidDisplayDate('abc')).toBe(false);
     });
   });
 
