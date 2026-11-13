@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -20,6 +20,7 @@ import {
   MAX_ATTACHMENT_COUNT,
   mergeAttachmentsPool,
   getFileExtension,
+  generateSequentialAttachmentName,
 } from '../../lib/attachments';
 import { formatFileSize, formatDate, cn } from '../../lib/utils';
 import type { Database } from '../../types/database.types';
@@ -49,6 +50,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'library'>('upload');
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeObjectUrls = useRef<string[]>([]);
@@ -66,6 +68,95 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
       activeObjectUrls.current = [];
     };
   }, []);
+
+  // Handle local file selection
+  const handleFilesAdded = useCallback(
+    (files: FileList | File[]) => {
+      setValidationError(null);
+      const fileArray = Array.from(files);
+      if (fileArray.length === 0) return;
+
+      const { items, warning } = mergeAttachmentsPool(selectedItems, fileArray);
+      if (warning) {
+        setValidationError(warning);
+      }
+      onItemsChange(items);
+    },
+    [selectedItems, onItemsChange]
+  );
+
+  // Tangani event paste saat kursor diarahkan ke area box lampiran (hover)
+  useEffect(() => {
+    if (disabled || activeTab !== 'upload') return;
+
+    const handleWindowPaste = (e: ClipboardEvent) => {
+      if (!isHovered) return;
+
+      // Cegah intersep jika pengguna sedang aktif mengetik di input atau textarea lain
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+        activeEl !== fileInputRef.current
+      ) {
+        return;
+      }
+
+      if (!e.clipboardData || !e.clipboardData.files || e.clipboardData.files.length === 0) {
+        return;
+      }
+
+      const rawFiles = Array.from(e.clipboardData.files);
+      if (rawFiles.length === 0) return;
+
+      e.preventDefault();
+
+      let currentPool = [...selectedItems];
+      const processedFiles: File[] = [];
+
+      for (const file of rawFiles) {
+        const isGenericImage =
+          file.type.startsWith('image/') &&
+          (file.name === 'image.png' || file.name === 'blob' || /^image\.\w+$/i.test(file.name));
+
+        if (isGenericImage) {
+          const ext =
+            file.type === 'image/jpeg'
+              ? '.jpg'
+              : file.type === 'image/png'
+              ? '.png'
+              : getFileExtension(file.name) || '.png';
+
+          const newName = generateSequentialAttachmentName(currentPool, ext);
+          const renamedFile = new File([file], newName, { type: file.type });
+          processedFiles.push(renamedFile);
+
+          currentPool.push({
+            id: crypto.randomUUID(),
+            name: newName,
+            size: renamedFile.size,
+            source: 'local',
+          });
+        } else {
+          // Berkas yang memiliki nama asli
+          processedFiles.push(file);
+          currentPool.push({
+            id: crypto.randomUUID(),
+            name: file.name,
+            size: file.size,
+            source: 'local',
+          });
+        }
+      }
+
+      handleFilesAdded(processedFiles);
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => {
+      window.removeEventListener('paste', handleWindowPaste);
+    };
+  }, [isHovered, disabled, activeTab, selectedItems, handleFilesAdded]);
 
   // Fetch dokumen yang sudah ada di pustaka milik user
   const { data: libraryDocs, isLoading: isLoadingLibrary } = useQuery<LibraryAttachment[]>({
@@ -89,18 +180,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
     enabled: !!user && activeTab === 'library',
   });
 
-  // Handle local file selection
-  const handleFilesAdded = (files: FileList | File[]) => {
-    setValidationError(null);
-    const fileArray = Array.from(files);
-    if (fileArray.length === 0) return;
 
-    const { items, warning } = mergeAttachmentsPool(selectedItems, fileArray);
-    if (warning) {
-      setValidationError(warning);
-    }
-    onItemsChange(items);
-  };
 
   // Drag & Drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -260,17 +340,21 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
         </div>
       )}
 
-      {/* Tab 1: Upload Baru (Drag & Drop) */}
+      {/* Tab 1: Upload Baru (Drag & Drop & Paste) */}
       {activeTab === 'upload' && (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
           onClick={() => !disabled && fileInputRef.current?.click()}
           className={cn(
-            'flex flex-col items-center justify-center rounded-xl border border-dashed p-4 text-center cursor-pointer transition-all',
+            'relative flex flex-col items-center justify-center rounded-xl border border-dashed p-4 text-center cursor-pointer transition-all',
             isDragging
               ? 'border-brand-500 bg-brand-500/10'
+              : isHovered
+              ? 'border-brand-500/80 bg-brand-500/5 ring-1 ring-brand-500/30'
               : 'border-border bg-muted/20 hover:bg-muted/40 hover:border-brand-500/60',
             disabled && 'pointer-events-none opacity-60'
           )}
@@ -290,7 +374,7 @@ export const AttachmentManager: React.FC<AttachmentManagerProps> = ({
             <Upload className="h-4 w-4" />
           </div>
           <p className="text-xs font-semibold text-foreground">
-            Seret & lepas berkas ke sini, atau <span className="text-brand-600 underline">pilih dari komputer</span>
+            Seret & lepas berkas ke sini, <span className="text-brand-600 underline">pilih dari komputer</span>, atau arahkan kursor & tekan <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border text-[10px] font-mono text-foreground font-semibold">Ctrl+V</kbd>
           </p>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Maks. 10 MB per berkas. Format: PDF, DOC, DOCX, JPG, PNG (Maks 5 berkas total)

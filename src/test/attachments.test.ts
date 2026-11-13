@@ -3,6 +3,7 @@ import {
   validateAttachmentFile,
   mergeAttachmentsPool,
   resolvePrimaryResume,
+  generateSequentialAttachmentName,
   MAX_ATTACHMENT_COUNT,
   MAX_FILE_SIZE_BYTES,
   type AttachmentItem,
@@ -142,6 +143,48 @@ describe('Attachment Validation & Management (TDD & ISTQB)', () => {
 
       const resumeName = resolvePrimaryResume(items, 'item-1'); // item-1 sudah dihapus
       expect(resumeName).toBeNull();
+    });
+  });
+
+  describe('Clipboard Paste & Sequential Naming (TDD)', () => {
+    it('PASTE-001: Menghasilkan dt_YYYYMMDD_0001 jika belum ada berkas di hari berjalan', () => {
+      const fixedDate = new Date(2026, 10, 13); // 13 Nov 2026
+      const items: AttachmentItem[] = [];
+
+      const result = generateSequentialAttachmentName(items, '.png', fixedDate);
+      expect(result).toBe('dt_20261113_0001.png');
+    });
+
+    it('PASTE-002: Menghasilkan nomor urut berikutnya (0002) jika 0001 sudah ada', () => {
+      const fixedDate = new Date(2026, 10, 13);
+      const items: AttachmentItem[] = [
+        { id: '1', name: 'dt_20261113_0001.png', size: 100, source: 'local' },
+        { id: '2', name: 'cv.pdf', size: 100, source: 'local' },
+      ];
+
+      const result = generateSequentialAttachmentName(items, '.png', fixedDate);
+      expect(result).toBe('dt_20261113_0002.png');
+    });
+
+    it('PASTE-003: Menangani nomor urut tertinggi ketika ada nomor yang terlewat', () => {
+      const fixedDate = new Date(2026, 10, 13);
+      const items: AttachmentItem[] = [
+        { id: '1', name: 'dt_20261113_0001.png', size: 100, source: 'local' },
+        { id: '2', name: 'dt_20261113_0004.png', size: 100, source: 'local' },
+      ];
+
+      const result = generateSequentialAttachmentName(items, '.jpg', fixedDate);
+      expect(result).toBe('dt_20261113_0005.jpg');
+    });
+
+    it('PASTE-004: Mengabaikan berkas dengan tanggal berbeda pada prefix', () => {
+      const fixedDate = new Date(2026, 10, 13);
+      const items: AttachmentItem[] = [
+        { id: '1', name: 'dt_20261112_0009.png', size: 100, source: 'local' }, // Kemarin
+      ];
+
+      const result = generateSequentialAttachmentName(items, 'png', fixedDate);
+      expect(result).toBe('dt_20261113_0001.png');
     });
   });
 });

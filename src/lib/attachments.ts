@@ -127,3 +127,36 @@ export function resolvePrimaryResume(
   const match = items.find((item) => item.id === primaryId);
   return match ? match.name : null;
 }
+
+/**
+ * Menghasilkan nama berkas otomatis berurutan untuk hasil paste clipboard
+ * Format: dt_YYYYMMDD_0001.ext
+ */
+export function generateSequentialAttachmentName(
+  currentItems: AttachmentItem[],
+  extension: string,
+  now: Date = new Date()
+): string {
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const prefix = `dt_${yyyy}${mm}${dd}_`;
+
+  let maxSeq = 0;
+  for (const item of currentItems) {
+    if (item.name.startsWith(prefix)) {
+      const rest = item.name.slice(prefix.length);
+      const dotIndex = rest.indexOf('.');
+      const numStr = dotIndex !== -1 ? rest.slice(0, dotIndex) : rest;
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  }
+
+  const nextSeq = String(maxSeq + 1).padStart(4, '0');
+  const normalizedExt = extension.startsWith('.') ? extension : `.${extension}`;
+  return `${prefix}${nextSeq}${normalizedExt}`;
+}
+

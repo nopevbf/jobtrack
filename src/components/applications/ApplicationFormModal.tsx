@@ -28,12 +28,15 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   const [primaryResumeId, setPrimaryResumeId] = useState<string | null>(null);
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sourceType, setSourceType] = useState<string>('LinkedIn');
+  const [customSource, setCustomSource] = useState<string>('');
 
   const {
     register,
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<JobApplicationFormValues>({
     resolver: zodResolver(jobApplicationSchema) as any,
@@ -62,6 +65,8 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
     setSelectedAttachments([]);
     setPrimaryResumeId(null);
     setUploadProgressText(null);
+    setSourceType('LinkedIn');
+    setCustomSource('');
     onClose();
   };
 
@@ -287,11 +292,41 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">Sumber Lowongan</label>
-              <input
-                {...register('job_source')}
-                placeholder="LinkedIn, Glints, Jobstreet, Referral"
+              <select
+                value={sourceType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSourceType(val);
+                  if (val === 'Other') {
+                    setValue('job_source', customSource);
+                  } else {
+                    setValue('job_source', val);
+                  }
+                }}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus:border-brand-500 focus:outline-none"
-              />
+              >
+                <option value="LinkedIn">LinkedIn</option>
+                <option value="Glints">Glints</option>
+                <option value="Jobstreet">Jobstreet</option>
+                <option value="Indeed">Indeed</option>
+                <option value="Kalibrr">Kalibrr</option>
+                <option value="Tech in Asia">Tech in Asia</option>
+                <option value="Website Perusahaan / Karir">Website Perusahaan / Karir</option>
+                <option value="Referral / Rekomendasi">Referral / Rekomendasi</option>
+                <option value="Other">Lainnya (Other)</option>
+              </select>
+              {sourceType === 'Other' && (
+                <input
+                  type="text"
+                  placeholder="Ketik sumber lowongan..."
+                  value={customSource}
+                  onChange={(e) => {
+                    setCustomSource(e.target.value);
+                    setValue('job_source', e.target.value);
+                  }}
+                  className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2 text-xs focus:border-brand-500 focus:outline-none animate-in fade-in duration-200"
+                />
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">Website Perusahaan</label>

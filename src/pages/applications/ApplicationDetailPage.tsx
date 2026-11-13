@@ -24,6 +24,8 @@ import {
   CheckCircle2,
   AlertCircle,
   MessageSquare,
+  Pencil,
+  Check,
 } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '../../lib/utils';
 import type { ApplicationStatus } from '../../types/database.types';
@@ -44,6 +46,11 @@ export const ApplicationDetailPage: React.FC = () => {
   // Catatan baru
   const [newNoteContent, setNewNoteContent] = useState('');
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+
+  // Edit Catatan Awal Lamaran (app.notes)
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editedNotes, setEditedNotes] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   // Upload attachment state
   const [isUploading, setIsUploading] = useState(false);
@@ -105,6 +112,26 @@ export const ApplicationDetailPage: React.FC = () => {
       alert(`Gagal menambahkan catatan: ${err.message}`);
     } finally {
       setIsSubmittingNote(false);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!id) return;
+    setIsSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('job_applications')
+        .update({ notes: editedNotes.trim() || null })
+        .eq('id', id);
+
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ['job_application', id] });
+      setIsEditingNotes(false);
+      refetch();
+    } catch (err: any) {
+      alert(`Gagal memperbarui catatan: ${err.message}`);
+    } finally {
+      setIsSavingNotes(false);
     }
   };
 
@@ -448,7 +475,78 @@ export const ApplicationDetailPage: React.FC = () => {
       {/* Tab: Notes */}
       {activeTab === 'notes' && (
         <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm space-y-6">
-          <h3 className="text-sm font-bold text-foreground">Catatan & Evaluasi Wawancara</h3>
+          {/* Catatan Awal Lamaran (app.notes) */}
+          <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-brand-600" />
+                <h4 className="text-xs font-bold text-foreground">Catatan Awal Lamaran</h4>
+              </div>
+              {!isEditingNotes && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditedNotes(app.notes || '');
+                    setIsEditingNotes(true);
+                  }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-600 hover:bg-brand-500/10 transition"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>{app.notes ? 'Edit Catatan' : 'Tambah Catatan Awal'}</span>
+                </button>
+              )}
+            </div>
+
+            {isEditingNotes ? (
+              <div className="space-y-2 pt-1">
+                <textarea
+                  value={editedNotes}
+                  onChange={(e) => setEditedNotes(e.target.value)}
+                  placeholder="Poin penting tentang perusahaan, kisi-kisi, atau catatan awal..."
+                  rows={3}
+                  className="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus:border-brand-500 focus:outline-none"
+                  disabled={isSavingNotes}
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={isSavingNotes}
+                    onClick={() => setIsEditingNotes(false)}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingNotes}
+                    onClick={handleSaveNotes}
+                    className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    {isSavingNotes ? (
+                      <span>Menyimpan...</span>
+                    ) : (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Simpan</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : app.notes ? (
+              <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed bg-background/60 p-3 rounded-lg border border-border/40">
+                {app.notes}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground italic py-1">
+                Belum ada catatan awal yang disertakan saat pembuatan lamaran.
+              </p>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-border/60">
+            <h3 className="text-sm font-bold text-foreground mb-3">Catatan & Evaluasi Wawancara</h3>
+          </div>
 
           {/* Form input note */}
           <form onSubmit={handleAddNote} className="space-y-3">
