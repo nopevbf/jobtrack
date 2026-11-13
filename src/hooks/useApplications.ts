@@ -10,6 +10,7 @@ export interface ApplicationFilters {
   search?: string;
   status?: string;
   priority?: string;
+  employment_type?: string;
   source?: string;
 }
 
@@ -34,13 +35,17 @@ export function useApplications(filters?: ApplicationFilters) {
         query = query.eq('priority', filters.priority as PriorityLevel);
       }
 
+      if (filters?.employment_type && filters.employment_type !== 'all') {
+        query = query.eq('employment_type', filters.employment_type);
+      }
+
       if (filters?.source && filters.source !== 'all') {
         query = query.eq('job_source', filters.source);
       }
 
       if (filters?.search && filters.search.trim()) {
         const s = `%${filters.search.trim()}%`;
-        query = query.or(`company_name.ilike.${s},job_position.ilike.${s},notes.ilike.${s}`);
+        query = query.or(`company_name.ilike.${s},job_position.ilike.${s},notes.ilike.${s},employment_type.ilike.${s}`);
       }
 
       const { data, error } = await query;

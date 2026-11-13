@@ -3,21 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useApplications, useDeleteApplication } from '../../hooks/useApplications';
 import {
   Search,
-  Filter,
   Download,
   Plus,
-  MoreVertical,
   Eye,
   Trash2,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Briefcase,
-  Building2,
-  DollarSign,
-  Calendar,
 } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '../../lib/utils';
+import { formatEmploymentType, buildApplicationsCsvContent } from '../../lib/applications';
 import type { ApplicationStatus } from '../../types/database.types';
 import { ApplicationFormModal } from '../../components/applications/ApplicationFormModal';
 
@@ -26,6 +20,7 @@ export const ApplicationsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -35,6 +30,7 @@ export const ApplicationsPage: React.FC = () => {
     search,
     status: statusFilter,
     priority: priorityFilter,
+    employment_type: employmentTypeFilter,
   });
 
   const deleteMutation = useDeleteApplication();
@@ -59,33 +55,7 @@ export const ApplicationsPage: React.FC = () => {
       return;
     }
 
-    const headers = [
-      'ID',
-      'Perusahaan',
-      'Posisi',
-      'Status',
-      'Prioritas',
-      'Tanggal Melamar',
-      'Ekspektasi Gaji',
-      'Mata Uang',
-      'Sumber',
-      'Kontak Recruiter',
-    ];
-
-    const rows = allApps.map((a) => [
-      a.id,
-      `"${a.company_name.replace(/"/g, '""')}"`,
-      `"${a.job_position.replace(/"/g, '""')}"`,
-      a.status,
-      a.priority,
-      a.application_date,
-      a.expected_salary || '',
-      a.currency || 'IDR',
-      `"${a.job_source || ''}"`,
-      `"${a.recruiter_name || ''} (${a.recruiter_email || ''})"`,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = 'data:text/csv;charset=utf-8,' + buildApplicationsCsvContent(allApps);
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -163,8 +133,26 @@ export const ApplicationsPage: React.FC = () => {
             />
           </div>
 
-          {/* Status Filter */}
-          <div className="flex w-full md:w-auto items-center gap-2">
+          {/* Filters (Tipe, Status, Prioritas) */}
+          <div className="flex w-full md:w-auto items-center gap-2 flex-wrap">
+            {/* Employment Type Filter */}
+            <select
+              value={employmentTypeFilter}
+              onChange={(e) => {
+                setEmploymentTypeFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-brand-500 focus:outline-none"
+            >
+              <option value="all">Semua Tipe</option>
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Contract">Contract</option>
+              <option value="Freelance">Freelance</option>
+              <option value="Internship">Internship</option>
+            </select>
+
+            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -214,6 +202,7 @@ export const ApplicationsPage: React.FC = () => {
               <tr className="border-b border-border/80 bg-muted/30 text-muted-foreground">
                 <th className="py-3 px-4 font-semibold">Perusahaan</th>
                 <th className="py-3 px-4 font-semibold">Posisi</th>
+                <th className="py-3 px-4 font-semibold">Tipe Pekerjaan</th>
                 <th className="py-3 px-4 font-semibold">Status</th>
                 <th className="py-3 px-4 font-semibold">Prioritas</th>
                 <th className="py-3 px-4 font-semibold">Gaji Harapan</th>
@@ -224,7 +213,7 @@ export const ApplicationsPage: React.FC = () => {
             <tbody className="divide-y divide-border/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     Memuat data lamaran...
                   </td>
                 </tr>
@@ -246,6 +235,11 @@ export const ApplicationsPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 font-medium text-foreground">
                       {app.job_position}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                        {formatEmploymentType(app.employment_type)}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4">
                       <span
@@ -299,7 +293,7 @@ export const ApplicationsPage: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     Tidak ada lamaran yang cocok dengan kriteria pencarian.
                   </td>
                 </tr>
