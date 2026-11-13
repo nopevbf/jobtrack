@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { Database } from '../types/database.types';
+import { calculateJobSearchMomentum, type MomentumResult } from '../lib/momentum';
 
 type JobApplicationRow = Database['public']['Tables']['job_applications']['Row'];
 type RecruitmentEventRow = Database['public']['Tables']['recruitment_events']['Row'];
@@ -16,6 +17,7 @@ export interface DashboardStats {
   recentApplications: JobApplicationRow[];
   upcomingEvents: (RecruitmentEventRow & { job_applications?: { company_name: string; job_position: string } | null })[];
   statusDistribution: { status: string; count: number }[];
+  momentum: MomentumResult;
 }
 
 export function useDashboardStats() {
@@ -35,6 +37,7 @@ export function useDashboardStats() {
           recentApplications: [],
           upcomingEvents: [],
           statusDistribution: [],
+          momentum: calculateJobSearchMomentum([], []),
         };
       }
 
@@ -83,7 +86,15 @@ export function useDashboardStats() {
         count,
       }));
 
-      // Ambil upcoming events
+      // Ambil seluruh recruitment events yang aktif milik user untuk kalkulasi momentum
+      const { data: allActiveEvents, error: allEventsError } = await supabase
+        .from('recruitment_events')
+        .select('*')
+        .eq('is_completed', false);
+
+      if (allEventsError) throw allEventsError;
+
+      // Ambil upcoming events untuk widget kalender
       const { data: events, error: eventsError } = await supabase
         .from('recruitment_events')
         .select(`
@@ -100,6 +111,8 @@ export function useDashboardStats() {
 
       if (eventsError) throw eventsError;
 
+      const momentum = calculateJobSearchMomentum(allApps, allActiveEvents || [], todayStr);
+
       return {
         totalApplications,
         activeApplications,
@@ -110,6 +123,7 @@ export function useDashboardStats() {
         recentApplications,
         upcomingEvents: (events as any) || [],
         statusDistribution,
+        momentum,
       };
     },
     enabled: !!user,

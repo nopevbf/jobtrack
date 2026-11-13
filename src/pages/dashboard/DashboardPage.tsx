@@ -16,6 +16,7 @@ import {
   TrendingUp,
   AlertCircle,
   FileCheck,
+  Info,
 } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '../../lib/utils';
 import type { ApplicationStatus } from '../../types/database.types';
@@ -46,6 +47,47 @@ export const DashboardPage: React.FC = () => {
         return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200';
     }
   };
+
+  const momentum = stats?.momentum;
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const score = momentum?.score ?? 0;
+  const strokeDashoffset = circumference - (circumference * score) / 100;
+
+  const getMomentumThemeClasses = (theme?: 'emerald' | 'amber' | 'rose' | 'muted') => {
+    switch (theme) {
+      case 'emerald':
+        return {
+          stroke: 'stroke-emerald-500',
+          text: 'text-emerald-600 dark:text-emerald-400',
+          badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-800/50',
+          bg: 'bg-emerald-50/50 dark:bg-emerald-950/20',
+        };
+      case 'amber':
+        return {
+          stroke: 'stroke-amber-500',
+          text: 'text-amber-600 dark:text-amber-400',
+          badge: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200/60 dark:border-amber-800/50',
+          bg: 'bg-amber-50/50 dark:bg-amber-950/20',
+        };
+      case 'rose':
+        return {
+          stroke: 'stroke-rose-500',
+          text: 'text-rose-600 dark:text-rose-400',
+          badge: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200/60 dark:border-rose-800/50',
+          bg: 'bg-rose-50/50 dark:bg-rose-950/20',
+        };
+      default:
+        return {
+          stroke: 'stroke-slate-300 dark:stroke-slate-700',
+          text: 'text-muted-foreground',
+          badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200',
+          bg: 'bg-slate-50 dark:bg-slate-900/20',
+        };
+    }
+  };
+
+  const momentumTheme = getMomentumThemeClasses(momentum?.colorTheme);
 
   return (
     <div className="space-y-6">
@@ -297,28 +339,88 @@ export const DashboardPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <FileCheck className="h-4 w-4 text-brand-600" />
                 <h3 className="text-sm font-bold text-foreground">Job Search Momentum</h3>
+                {/* Tooltip Info */}
+                <div className="relative group inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-label="Info perhitungan momentum"
+                    className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-full hover:bg-muted"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:flex group-focus-within:flex flex-col w-56 p-2.5 rounded-xl bg-popover text-popover-foreground border border-border shadow-xl text-[11px] z-50 pointer-events-none">
+                    <span className="font-semibold text-foreground mb-1">Kalkulasi Skor Momentum:</span>
+                    <span className="text-muted-foreground">• 40% Rasio Lamaran Aktif</span>
+                    <span className="text-muted-foreground">• 30% Follow-up Tepat Waktu</span>
+                    <span className="text-muted-foreground">• 30% Kesiapan Jadwal Interview</span>
+                  </div>
+                </div>
               </div>
-              <span className="text-xs font-bold text-brand-600">85% Active</span>
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                  isLoading ? 'bg-muted text-muted-foreground' : momentumTheme.badge
+                )}
+              >
+                {isLoading ? '...' : `${momentum?.activeRatio ?? 0}% Active`}
+              </span>
             </div>
 
             <div className="mt-4 flex flex-col items-center text-center">
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-brand-50 dark:bg-brand-950/40 border-4 border-brand-500 shadow-inner">
-                <span className="text-2xl font-black text-brand-600 dark:text-brand-400">85%</span>
+              {/* Dynamic SVG Circular Progress Bar */}
+              <div className={cn('relative flex h-24 w-24 items-center justify-center rounded-full', momentumTheme.bg)}>
+                <svg className="h-24 w-24 -rotate-90 transform" viewBox="0 0 96 96">
+                  {/* Background Track Circle */}
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r={radius}
+                    className="stroke-muted/60 dark:stroke-muted/30"
+                    strokeWidth="7"
+                    fill="transparent"
+                  />
+                  {/* Progress Indicator Circle */}
+                  <circle
+                    cx="48"
+                    cy="48"
+                    r={radius}
+                    className={cn('transition-all duration-700 ease-out', momentumTheme.stroke)}
+                    strokeWidth="7"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={isLoading ? circumference : strokeDashoffset}
+                    strokeLinecap="round"
+                    fill="transparent"
+                  />
+                </svg>
+                <div className="absolute flex flex-col items-center justify-center">
+                  <span className={cn('text-2xl font-black tracking-tight', momentumTheme.text)}>
+                    {isLoading ? '...' : `${score}%`}
+                  </span>
+                </div>
               </div>
-              <p className="mt-3 text-xs font-semibold text-foreground">Pipeline Berjalan Lancar</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[200px]">
-                Tingkat tindak lanjut & follow-up lamaran Anda berada dalam rasio optimal.
+
+              <p className="mt-3 text-xs font-semibold text-foreground">
+                {isLoading ? 'Menghitung momentum...' : (momentum?.statusLabel || 'Belum Ada Aktivitas')}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[210px]">
+                {isLoading
+                  ? 'Menganalisis performa pipeline dan aktivitas...'
+                  : (momentum?.statusDescription || 'Mulai catat lamaran pekerjaan Anda untuk melacak momentum.')}
               </p>
             </div>
 
             <div className="mt-4 space-y-2 border-t border-border/60 pt-3 text-xs">
               <div className="flex justify-between text-muted-foreground">
                 <span>Follow-ups Selesai</span>
-                <span className="font-semibold text-foreground">90%</span>
+                <span className="font-semibold text-foreground">
+                  {isLoading ? '...' : `${momentum?.followUpRatio ?? 0}%`}
+                </span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Jadwal Terisi</span>
-                <span className="font-semibold text-foreground">85%</span>
+                <span className="font-semibold text-foreground">
+                  {isLoading ? '...' : `${momentum?.scheduleRatio ?? 0}%`}
+                </span>
               </div>
             </div>
           </div>
